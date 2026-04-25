@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}FaceWatch — Importação{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+
+    <div class="card" style="border: 1px dashed var(--accent); background: rgba(0,200,255,0.02); margin-bottom: 24px;">
+        <div id="drop-zone" class="p-12 flex flex-col items-center justify-center text-center" 
+             onclick="document.getElementById('bulk-file').click()"
+             style="cursor: pointer; min-height: 300px;">
+            
+            <div class="mb-6" style="color: var(--accent); filter: drop-shadow(0 0 10px var(--accent-glow));">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+            </div>
+            
+            <h2 class="mono text-lg mb-2">TRANSFERÊNCIA DE BASE DE DADOS</h2>
+            <p class="mono text-xs opacity-60 max-w-md mx-auto">
+                ARRASTE O ARQUIVO <span style="color: var(--accent)">.ZIP</span> OU CLIQUE PARA SELECIONAR.<br><br>
+                ESTRUTURA OBRIGATÓRIA:<br>
+                <span class="bg-black/40 px-2 py-1">Nome_da_Pessoa/foto.jpg</span>
+            </p>
+            <input type="file" id="bulk-file" hidden accept=".zip" onchange="startImport(this)">
+        </div>
+
+        <div id="progress-panel" class="hidden border-t border-white/10 p-6 bg-black/40">
+            <div class="flex justify-between mono text-[11px] mb-3">
+                <span id="status-text">DESCOMPACTANDO PACOTES...</span>
+                <span id="percent-text">0%</span>
+            </div>
+            <div class="w-full bg-white/5 h-1 mb-4">
+                <div id="progress-bar" class="bg-accent h-full shadow-[0_0_10px_var(--accent-glow)]" style="width: 0%; transition: width 0.4s;"></div>
+            </div>
+            <div id="log-console" class="mono text-[10px] text-accent/70 h-24 overflow-y-auto bg-black p-2 border border-white/5">
+                > AGUARDANDO INPUT...
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card p-4">
+            <h3 class="mono text-[11px] text-accent mb-2">REQUISITOS DO ARQUIVO</h3>
+            <ul class="mono text-[10px] opacity-70 space-y-2">
+                <li>• Formato único aceito: .ZIP</li>
+                <li>• Tamanho máx. sugerido: 100MB</li>
+                <li>• Formatos de imagem: JPG, PNG</li>
+            </ul>
+        </div>
+        <div class="card p-4">
+            <h3 class="mono text-[11px] text-warn mb-2">AVISO DE PROCESSAMENTO</h3>
+            <ul class="mono text-[10px] opacity-70 space-y-2">
+                <li>• Duplicatas serão mescladas.</li>
+                <li>• O modelo será retreinado ao final.</li>
+                <li>• Não feche a aba durante o upload.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+const log = (msg) => {
+    const consoleEl = document.getElementById('log-console');
+    consoleEl.innerHTML += `<div>> ${msg}</div>`;
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+};
+
+async function startImport(input) {
+    if (!input.files.length) return;
+    
+    const file = input.files[0];
+    const panel = document.getElementById('progress-panel');
+    const bar = document.getElementById('progress-bar');
+    const percent = document.getElementById('percent-text');
+    const statusText = document.getElementById('status-text');
+
+    panel.classList.remove('hidden');
+    log(`INICIANDO UPLOAD: ${file.name}`);
+    bar.style.width = '15%';
+    percent.innerText = '15%';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        log('ENVIANDO DADOS PARA O SERVIDOR CENTRAL...');
+        const response = await fetch('/api/import/bulk', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            bar.style.width = '100%';
+            percent.innerText = '100%';
+            statusText.innerText = 'SUCESSO: BASE ATUALIZADA';
+            log(result.message.toUpperCase());
+            log('RETREINAMENTO DO MODELO CONCLUÍDO.');
+            toast('Importação concluída com sucesso!', 'success');
+            setTimeout(() => location.href = '/search', 3000);
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        log(`ERRO CRÍTICO: ${error.message.toUpperCase()}`);
+        statusText.innerText = 'FALHA NO PROTOCOLO';
+        statusText.style.color = 'var(--danger)';
+        toast(error.message, 'error');
+    }
+}
+</script>
+{% endblock %}

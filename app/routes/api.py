@@ -6,12 +6,85 @@ import uuid
 import base64
 from functools import wraps
 from datetime import datetime
+import zipfile
+from werkzeug.utils import secure_filename
 
 from flask import Blueprint, request, jsonify, session, current_app, send_from_directory, abort
 from ..models import db, Person, Occurrence
 from ..services.face import FaceService
 
 api_bp = Blueprint("api", __name__)
+
+# ── ROTA DE IMPORTAÇÃO EM MASSA ──────────────────────────────────────────────
+@api_bp.route("/import/bulk", methods=["POST"])
+def bulk_import():
+    if 'file' not in request.files:
+        return jsonify({"status": "error", "message": "Arquivo ZIP não enviado"}), 400
+    
+    file = request.files['file']
+    if not file.filename.endswith('.zip'):
+        return jsonify({"status": "error", "message": "O arquivo precisa ser um .zip"}), 400
+
+    upload_dir = current_app.config["UPLOAD_FOLDER"]
+    faces_dir = os.path.join(upload_dir, "faces")
+    os.makedirs(faces_dir, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(file, 'r') as z:
+            imported_count = 0
+            
+            for filepath in z.namelist():
+                # 1. Ignora arquivos de sistema e pastas vazias
+                if filepath.startswith('__') or filepath.endswith('/') or \
+                   not filepath.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    continue
+                
+                # 2. Lógica de extração de nome melhorada:
+                # Divide o caminho: ['pastaFace', 'Thiago', 'foto.jpeg']
+                parts = [p for p in filepath.split('/') if p]
+                
+                if len(parts) >= 2:
+                    # Se houver subpastas, o nome da pessoa é a pasta IMEDIATAMENTE acima do arquivo
+                    name_raw = parts[-2].replace('_', ' ').strip()
+                else:
+                    # Se o arquivo estiver na raiz do zip, ignora ou usa regra padrão
+                    continue
+
+                # 3. Busca ou cria a pessoa
+                person = Person.query.filter_by(name=name_raw).first()
+                if not person:
+                    person = Person(name=name_raw, status="active", risk_level="low")
+                    db.session.add(person)
+                    db.session.flush()
+
+                # 4. Salva a imagem
+                img_data = z.read(filepath)
+                ext = os.path.splitext(filepath)[1]
+                unique_name = f"face_{person.id}_{uuid.uuid4().hex[:6]}{ext}"
+                save_path = os.path.join(faces_dir, unique_name)
+                
+                with open(save_path, "wb") as f:
+                    f.write(img_data)
+                
+                person.face_photo = f"faces/{unique_name}"
+                imported_count += 1
+            
+            db.session.commit()
+            
+            # Retreina o modelo
+            model_path = os.path.join(current_app.instance_path, "face_model.pkl")
+            _train_model(model_path)
+            
+            return jsonify({
+                "status": "success", 
+                "message": f"Importação finalizada: {imported_count} rostos processados de subpastas."
+            })
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": f"Erro: {str(e)}"}), 500
+
+
 
 
 # ── Auth guard ───────────────────────────────────────────────────────────────
@@ -365,3 +438,36 @@ def _save_b64_image(b64: str, name: str, subfolder: str):
         import logging
         logging.getLogger(__name__).error(f"_save_b64_image error: {e}")
         return None
+
+def _train_model(model_path):
+    upload_dir = current_app.config["UPLOAD_FOLDER"]
+    data = []
+    
+    # Busca todas as pessoas que têm uma foto vinculada
+    persons = Person.query.filter(Person.face_photo != None).all()
+    
+    print(f"\n[DEBUG TREINO] Iniciando sincronização de {len(persons)} pessoas...")
+
+    for p in persons:
+        # Garante o caminho absoluto correto
+        if os.path.isabs(p.face_photo):
+            full_path = p.face_photo
+        else:
+            full_path = os.path.join(upload_dir, p.face_photo)
+
+        if os.path.exists(full_path):
+            data.append({"id": p.id, "name": p.name, "face_photo": full_path})
+        else:
+            print(f"[ERRO] Arquivo não encontrado para {p.name}: {full_path}")
+
+    if data:
+        print(f"[DEBUG TREINO] Enviando {len(data)} candidatos para o FaceService...")
+        success = FaceService.train(data, model_path)
+        
+        # O FaceService._labels contém quem realmente foi treinado com sucesso
+        trained_count = len(set(FaceService._labels)) if FaceService._labels else 0
+        print(f"[DEBUG TREINO] Finalizado! Pessoas no modelo: {trained_count}")
+        return success
+    
+    print("[AVISO] Nenhum dado válido para treinar.")
+    return False

@@ -9,6 +9,8 @@ def _logged():
     return "user_id" in session
 
 
+
+
 @pages_bp.route("/")
 def index():
     if not _logged():
@@ -49,3 +51,10 @@ def person_detail(person_id):
     if not _logged():
         return redirect(url_for("pages.login_page"))
     return render_template("person.html", user=session, person_id=person_id)
+
+
+@pages_bp.route("/import")
+def import_page():
+    if not _logged():
+        return redirect(url_for("pages.login_page"))
+    return render_template("import.html", user=session)
