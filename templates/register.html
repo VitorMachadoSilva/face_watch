@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}FaceWatch — Cadastro{% endblock %}
+
+{% block content %}
+<style>
+.register-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+@media (max-width: 768px) {
+  .register-grid { grid-template-columns: 1fr; }
+}
+.photo-thumb-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.photo-thumb {
+  width: 72px; height: 72px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  object-fit: cover;
+  cursor: pointer;
+}
+.section-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 20px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title:first-child { margin-top: 0; }
+</style>
+
+<div style="max-width:960px;margin:0 auto">
+  <div class="flex items-center justify-between mb-4">
+    <h1 style="font-size:18px">Novo Cadastro</h1>
+    <span class="mono text-dim text-xs">ID: <span id="person-id-label">—</span></span>
+  </div>
+
+  <div class="register-grid">
+    <!-- ═══ LEFT: FORM ═══ -->
+    <div class="card">
+      <p class="section-title">Identificação</p>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome Completo *</label>
+          <input type="text" id="f-name" class="form-input" placeholder="Nome completo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Apelido / Vulgo</label>
+          <input type="text" id="f-nick" class="form-input" placeholder="Apelido">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Gênero</label>
+          <select id="f-gender" class="form-select">
+            <option value="">—</option>
+            <option value="masculino">Masculino</option>
+            <option value="feminino">Feminino</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Idade (aprox.)</label>
+          <input type="number" id="f-age" class="form-input" placeholder="Ex: 28">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cor de Pele</label>
+          <select id="f-skin" class="form-select">
+            <option value="">—</option>
+            <option value="branca">Branca</option>
+            <option value="parda">Parda</option>
+            <option value="preta">Preta</option>
+            <option value="amarela">Amarela</option>
+            <option value="indigena">Indígena</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Altura (cm)</label>
+          <input type="number" id="f-height" class="form-input" placeholder="Ex: 175">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Endereço / Última localização conhecida</label>
+        <input type="text" id="f-address" class="form-input" placeholder="Rua, número, bairro...">
+      </div>
+
+      <p class="section-title">Perfil Operacional</p>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nível de Risco</label>
+          <select id="f-risk" class="form-select">
+            <option value="low">Baixo</option>
+            <option value="medium">Médio</option>
+            <option value="high">Alto</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="f-status" class="form-select">
+            <option value="active">Ativo</option>
+            <option value="detained">Detido</option>
+            <option value="fugitive">Foragido</option>
+            <option value="released">Liberado</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Locais Frequentes</label>
+        <input type="text" id="f-places-input" class="form-input" placeholder="Digite e pressione Enter">
+        <div class="tag-list" id="f-places-tags"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Substâncias Associadas</label>
+        <input type="text" id="f-subs-input" class="form-input" placeholder="Digite e pressione Enter">
+        <div class="tag-list" id="f-subs-tags"></div>
+      </div>
+
+      <p class="section-title">Características Físicas</p>
+
+      <div class="form-group">
+        <label class="form-label">Tatuagens</label>
+        <textarea id="f-tattoos" class="form-textarea" rows="2" placeholder="Descreva as tatuagens (localização, motivo...)"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Marcas Físicas / Cicatrizes</label>
+        <textarea id="f-marks" class="form-textarea" rows="2" placeholder="Cicatrizes, marcas de nascença, sinais..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Observações Gerais</label>
+        <textarea id="f-obs" class="form-textarea" rows="3" placeholder="Informações adicionais relevantes..."></textarea>
+      </div>
+    </div>
+
+    <!-- ═══ RIGHT: PHOTOS ═══ -->
+    <div>
+      <div class="card mb-3">
+        <div class="card-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="8" r="4"/></svg>
+          <h2>Foto do Rosto</h2>
+        </div>
+
+        <div id="face-drop" class="img-drop-zone" onclick="document.getElementById('face-file').click()">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;display:block;opacity:.4">
+            <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
+          <p>Toque para selecionar foto do rosto</p>
+          <p style="font-size:10px;margin-top:4px;opacity:.6">JPG, PNG ou WEBP</p>
+          <input type="file" id="face-file" accept="image/*" onchange="previewFace(event)">
+        </div>
+        <img id="face-preview" class="img-preview hidden" alt="Preview rosto">
+        <p class="mono text-xs text-dim mt-2" style="font-size:10px;">
+          ⚡ Foto aceita mesmo sem rosto detectado — modelo retreina automaticamente
+        </p>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <h2>Fotos Extras</h2>
+        </div>
+        <div class="img-drop-zone" onclick="document.getElementById('extra-files').click()">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 6px;display:block;opacity:.4">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <p>Corpo, tatuagens, documentos</p>
+          <input type="file" id="extra-files" accept="image/*" multiple onchange="previewExtras(event)">
+        </div>
+        <div class="photo-thumb-row" id="extra-thumbs"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block btn-lg" id="save-btn" onclick="savePerson()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        SALVAR CADASTRO
+      </button>
+      <p class="mono text-xs text-dim mt-2" style="text-align:center">
+        Modelo facial será retreinado automaticamente
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _placesTI, _subsTI;
+let _faceB64 = null;
+let _extraB64s = [];
+
+// Tag inputs
+_placesTI = TagInput(null, document.getElementById('f-places-input'), document.getElementById('f-places-tags'));
+_subsTI   = TagInput(null, document.getElementById('f-subs-input'),   document.getElementById('f-subs-tags'));
+
+function previewFace(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _faceB64 = e.target.result;
+    document.getElementById('face-preview').src = _faceB64;
+    document.getElementById('face-preview').classList.remove('hidden');
+    document.getElementById('face-drop').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewExtras(ev) {
+  const thumbs = document.getElementById('extra-thumbs');
+  Array.from(ev.target.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      _extraB64s.push(e.target.result);
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'photo-thumb';
+      thumbs.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function savePerson() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { toast('Nome é obrigatório', 'warn'); return; }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> SALVANDO...';
+
+  try {
+    // 1. Create person
+    const person = await API.post('/api/persons', {
+      name:            name,
+      nickname:        document.getElementById('f-nick').value,
+      gender:          document.getElementById('f-gender').value,
+      age:             parseInt(document.getElementById('f-age').value) || null,
+      skin_color:      document.getElementById('f-skin').value,
+      height_cm:       parseInt(document.getElementById('f-height').value) || null,
+      address:         document.getElementById('f-address').value,
+      frequent_places: _placesTI.get(),
+      substances:      _subsTI.get(),
+      tattoos:         document.getElementById('f-tattoos').value,
+      physical_marks:  document.getElementById('f-marks').value,
+      observations:    document.getElementById('f-obs').value,
+      risk_level:      document.getElementById('f-risk').value,
+      status:          document.getElementById('f-status').value,
+    });
+
+    if (!person.id) throw new Error(person.error || 'Erro ao criar pessoa');
+    document.getElementById('person-id-label').textContent = '#' + person.id;
+
+    // 2. Upload face photo
+    if (_faceB64) {
+      btn.innerHTML = '<span class="spinner"></span> ENVIANDO FOTO...';
+      const r = await API.post(`/api/persons/${person.id}/photo/face`, { image_b64: _faceB64 });
+      if (!r.ok) throw new Error('Erro ao enviar foto do rosto');
+    }
+
+    // 3. Upload extra photos
+    for (const b64 of _extraB64s) {
+      await API.post(`/api/persons/${person.id}/photo/extra`, { image_b64: b64 });
+    }
+
+    toast(`${name} cadastrado com sucesso!`, 'success', 4000);
+    setTimeout(() => location.href = `/person/${person.id}`, 1500);
+
+  } catch(e) {
+    toast('Erro: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> SALVAR CADASTRO`;
+  }
+}
+</script>
+{% endblock %}

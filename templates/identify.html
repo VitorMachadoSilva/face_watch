@@ -1,0 +1,708 @@
+{% extends "base.html" %}
+{% block title %}FaceWatch — Identificar{% endblock %}
+
+{% block content %}
+<style>
+.identify-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) {
+  .identify-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Camera panel ── */
+#cam-panel { position: relative; }
+.cam-viewport {
+  position: relative;
+  background: #000;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  aspect-ratio: 9/16;
+}
+#cam-video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+#cam-canvas { display: none; }
+.cam-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.cam-placeholder svg { opacity: .3; }
+.cam-placeholder p { letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
+
+/* Corner brackets */
+.cam-viewport::before,
+.cam-viewport::after {
+  content: '';
+  position: absolute;
+  width: 24px; height: 24px;
+  border-color: var(--accent);
+  border-style: solid;
+  z-index: 5;
+  opacity: .6;
+}
+.cam-viewport::before { top: 12px; left: 12px; border-width: 2px 0 0 2px; border-radius: 3px 0 0 0; }
+.cam-viewport::after  { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; border-radius: 0 0 3px 0; }
+
+/* HUD overlay */
+#hud {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,.85));
+  padding: 20px 16px 14px;
+  z-index: 10;
+  display: none;
+}
+#hud.visible { display: block; }
+#hud-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+#hud-name {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+#hud-conf {
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#hud-bar { flex: 1; }
+
+/* Scan pulse */
+.scan-line {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  z-index: 6;
+  opacity: 0;
+}
+.scan-line.scanning {
+  animation: scan-sweep 1.5s linear infinite;
+  opacity: 1;
+}
+@keyframes scan-sweep {
+  0%   { top: 0;    opacity: .8; }
+  90%  { top: 100%; opacity: .8; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Controls */
+.cam-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Result panel ── */
+#result-panel .no-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+  letter-spacing: .06em;
+}
+#result-panel .no-result svg { opacity: .3; }
+
+.result-photo {
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  display: block;
+  margin-bottom: 16px;
+}
+.result-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 4px;
+}
+.result-nickname { font-family: var(--mono); font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.result-conf-wrap {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.result-conf-wrap .label { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+.result-conf-wrap .value { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+.result-actions { display: flex; gap: 8px; margin-top: 14px; }
+.result-actions .btn { flex: 1; font-size: 11px; }
+
+/* Stats bar */
+.stats-bar {
+  margin-bottom: 16px;
+}
+
+/* Botão trocar câmera — flutua dentro do viewport */
+#btn-flip {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.55);
+  border: 1px solid rgba(255,255,255,.15);
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .18s;
+  backdrop-filter: blur(4px);
+  padding: 0;
+}
+#btn-flip:hover { background: rgba(0,200,255,.35); }
+#btn-flip.spinning svg { animation: flip-spin .4s ease; }
+@keyframes flip-spin { from { transform: rotate(0deg); } to { transform: rotate(180deg); } }
+
+/* Indicador da câmera ativa */
+#cam-label {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 20;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.7);
+  background: rgba(0,0,0,.5);
+  padding: 3px 8px;
+  border-radius: 20px;
+  display: none;
+  backdrop-filter: blur(4px);
+}
+
+/* Espelha o vídeo quando câmera frontal */
+#cam-video.mirrored { transform: scaleX(-1); }
+</style>
+
+<div class="stats-bar">
+  <div class="stats-row" id="stats-row">
+    <div class="stat-chip"><span class="value" id="st-total">—</span><span class="label">Cadastros</span></div>
+    <div class="stat-chip"><span class="value text-danger" id="st-high">—</span><span class="label">Alto Risco</span></div>
+    <div class="stat-chip"><span class="value text-accent" id="st-model">—</span><span class="label">No Modelo</span></div>
+    <div class="stat-chip"><span class="value" style="color:var(--warn)" id="st-fug">—</span><span class="label">Foragidos</span></div>
+  </div>
+</div>
+
+<div class="identify-grid">
+  <!-- ══ CAMERA ══ -->
+  <div id="cam-panel" class="card" style="padding:16px">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="2" y="2" width="6" height="6" rx="1"/><rect x="16" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><circle cx="12" cy="12" r="3" fill="var(--accent)" opacity=".5"/></svg>
+      <h2>Scanner Facial</h2>
+      <span class="subtitle" id="scan-status-label">AGUARDANDO</span>
+    </div>
+
+    <div class="cam-viewport">
+      <div class="cam-placeholder" id="cam-placeholder">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="10" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          <rect x="3" y="3" width="5" height="5" rx="1"/><rect x="16" y="3" width="5" height="5" rx="1"/>
+          <rect x="3" y="16" width="5" height="5" rx="1"/>
+        </svg>
+        <p>Câmera inativa</p>
+      </div>
+      <video id="cam-video" autoplay playsinline muted style="display:none"></video>
+      <canvas id="cam-canvas"></canvas>
+      <div class="scan-line" id="scan-line"></div>
+      <!-- Label câmera ativa -->
+      <div id="cam-label">Frontal</div>
+      <!-- Botão trocar câmera -->
+      <button id="btn-flip" title="Trocar câmera" onclick="flipCamera()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
+          <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
+        </svg>
+      </button>
+      <div id="hud">
+        <div id="hud-status" class="text-dim">Analisando...</div>
+        <div id="hud-name"></div>
+        <div id="hud-conf">
+          <span id="hud-pct"></span>
+          <div class="conf-bar" id="hud-bar"><div class="conf-bar-fill" id="hud-bar-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cam-controls">
+      <button class="btn btn-primary" id="btn-start" onclick="startCamera()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        INICIAR CÂMERA
+      </button>
+      <button class="btn btn-ghost hidden" id="btn-stop" onclick="stopCamera()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        CANCELAR
+      </button>
+      <button class="btn btn-ghost hidden" id="btn-capture" onclick="captureFrame()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.66-.9l.82-1.2A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.66.9l.82 1.2A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        CAPTURAR
+      </button>
+
+      <!-- File upload -->
+      <label class="btn btn-ghost" style="cursor:pointer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        ARQUIVO
+        <input type="file" accept="image/*" onchange="identifyFile(event)" style="display:none">
+      </label>
+    </div>
+
+    <!-- Painel de debug — mostra o que o pipeline está vendo -->
+    <div id="debug-panel" style="
+      margin-top:10px;
+      background:rgba(0,0,0,.4);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:8px 10px;
+      font-family:var(--mono);
+      font-size:10px;
+      color:var(--text-dim);
+      display:none;
+      line-height:1.7;
+    ">
+      <div style="color:var(--accent);margin-bottom:4px;letter-spacing:.08em">◈ DEBUG PIPELINE</div>
+      <div id="dbg-haar">Haar: —</div>
+      <div id="dbg-knn">KNN dist: — | threshold: —</div>
+      <div id="dbg-status">Status: —</div>
+    </div>
+    <div style="margin-top:6px;text-align:right">
+      <button onclick="toggleDebug()" style="background:none;border:none;font-family:var(--mono);font-size:10px;color:var(--text-dim);cursor:pointer;letter-spacing:.06em">
+        ⚙ debug
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ RESULT ══ -->
+  <div id="result-panel" class="card" style="padding:16px">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+      <h2>Resultado</h2>
+    </div>
+    <div id="result-content">
+      <div class="no-result">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          <circle cx="12" cy="12" r="10" stroke-dasharray="4 2"/>
+        </svg>
+        <p>Nenhuma identificação</p>
+        <p style="font-size:10px;opacity:.6">Inicie a câmera ou faça upload de foto</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Occurrence modal -->
+<div class="modal-overlay" id="occ-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">➕ Nova Ocorrência</span>
+      <button class="modal-close" onclick="closeModal('occ-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="occ-person-id">
+      <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <select id="occ-type" class="form-select">
+          <option value="abordagem">Abordagem</option>
+          <option value="detencao">Detenção</option>
+          <option value="observacao">Observação</option>
+          <option value="apreensao">Apreensão</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Local</label>
+        <input type="text" id="occ-location" class="form-input" placeholder="Endereço ou referência">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descrição</label>
+        <textarea id="occ-desc" class="form-textarea" rows="3" placeholder="Descreva a ocorrência..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Substâncias encontradas</label>
+        <input type="text" id="occ-subs-input" class="form-input" placeholder="Digite e pressione Enter">
+        <div class="tag-list" id="occ-subs-tags"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('occ-modal')">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveOccurrence()">Salvar Ocorrência</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let _stream           = null;
+let _scanInterval     = null;
+let _scanning         = false;
+let _lastRealtimeId   = null;
+let _occSubsTI        = null;
+let _facingMode       = 'environment'; // 'user' = frontal | 'environment' = traseira
+let _hasMultipleCams  = false;         // detectado após iniciar
+let _debugOn          = false;
+
+// ── Init ─────────────────────────────────────────────────────────────────
+(async () => {
+  const stats = await API.get('/api/stats');
+  document.getElementById('st-total').textContent  = stats.total_persons;
+  document.getElementById('st-high').textContent   = stats.high_risk;
+  document.getElementById('st-model').textContent  = stats.trained_labels;
+  document.getElementById('st-fug').textContent    = stats.fugitives;
+
+  // Occurrence tag input
+  _occSubsTI = TagInput(
+    document.getElementById('occ-subs-input').parentElement,
+    document.getElementById('occ-subs-input'),
+    document.getElementById('occ-subs-tags')
+  );
+})();
+
+// ── Camera ────────────────────────────────────────────────────────────────
+async function startCamera(facingMode) {
+  // Para stream anterior se existir (ao trocar câmera)
+  if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
+
+  if (facingMode) _facingMode = facingMode;
+
+  try {
+    _stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: _facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+
+    const video = document.getElementById('cam-video');
+    video.srcObject = _stream;
+
+    // Espelha só a câmera frontal (user) — traseira não espelha
+    if (_facingMode === 'user') {
+      video.classList.add('mirrored');
+    } else {
+      video.classList.remove('mirrored');
+    }
+
+    video.style.display = 'block';
+    document.getElementById('cam-placeholder').style.display = 'none';
+    document.getElementById('btn-start').classList.add('hidden');
+    document.getElementById('btn-stop').classList.remove('hidden');
+    document.getElementById('btn-capture').classList.remove('hidden');
+    document.getElementById('scan-status-label').textContent = 'ATIVO';
+
+    // Atualiza label e mostra botão de troca
+    const label = document.getElementById('cam-label');
+    label.textContent = _facingMode === 'user' ? '📷 Frontal' : '📸 Traseira';
+    label.style.display = 'block';
+
+    // Detecta se há múltiplas câmeras (mostra botão flip só se houver)
+    _checkMultipleCams();
+
+    startRealtimeScan();
+  } catch(e) {
+    // Se falhar com a câmera preferida, tenta a outra
+    if (e.name === 'OverconstrainedError' || e.name === 'NotFoundError') {
+      const other = _facingMode === 'environment' ? 'user' : 'environment';
+      toast(`Câmera ${_facingMode === 'environment' ? 'traseira' : 'frontal'} indisponível, usando outra...`, 'warn');
+      return startCamera(other);
+    }
+    toast('Câmera não disponível: ' + e.message, 'error');
+  }
+}
+
+async function _checkMultipleCams() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams    = devices.filter(d => d.kind === 'videoinput');
+    _hasMultipleCams = cams.length > 1;
+    const flipBtn = document.getElementById('btn-flip');
+    flipBtn.style.display = _hasMultipleCams ? 'flex' : 'none';
+  } catch(e) {
+    // enumerateDevices pode falhar em alguns contextos; esconde o botão
+    document.getElementById('btn-flip').style.display = 'none';
+  }
+}
+
+async function flipCamera() {
+  if (!_stream) return;
+  const btn = document.getElementById('btn-flip');
+
+  // Animação de giro
+  btn.classList.add('spinning');
+  setTimeout(() => btn.classList.remove('spinning'), 400);
+
+  // Para scan enquanto troca
+  stopRealtimeScan();
+  _lastRealtimeId = null;
+  clearHUD();
+
+  // Troca o modo e reinicia
+  _facingMode = _facingMode === 'environment' ? 'user' : 'environment';
+  await startCamera(_facingMode);
+}
+
+function stopCamera() {
+  if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
+  stopRealtimeScan();
+  const video = document.getElementById('cam-video');
+  video.style.display = 'none';
+  video.srcObject = null;
+  video.classList.remove('mirrored');
+  document.getElementById('cam-placeholder').style.display = 'flex';
+  document.getElementById('btn-start').classList.remove('hidden');
+  document.getElementById('btn-stop').classList.add('hidden');
+  document.getElementById('btn-capture').classList.add('hidden');
+  document.getElementById('btn-flip').style.display = 'none';
+  document.getElementById('cam-label').style.display = 'none';
+  document.getElementById('scan-status-label').textContent = 'AGUARDANDO';
+  clearHUD();
+  clearResult();
+  _lastRealtimeId = null;
+}
+
+function startRealtimeScan() {
+  if (_scanInterval) return;
+  document.getElementById('scan-line').classList.add('scanning');
+  _scanInterval = setInterval(realtimeTick, 1500);
+}
+
+function stopRealtimeScan() {
+  if (_scanInterval) { clearInterval(_scanInterval); _scanInterval = null; }
+  document.getElementById('scan-line').classList.remove('scanning');
+}
+
+async function realtimeTick() {
+  if (_scanning) return;
+  _scanning = true;
+  try {
+    const b64 = captureB64(0.5);
+    if (!b64) return;
+
+    // Se debug ativo, chama endpoint de diagnóstico
+    if (_debugOn) {
+      const dbg = await API.post('/api/debug/recognize', { image_b64: b64 });
+      updateDebugPanel(dbg);
+    }
+
+    const res = await API.post('/api/recognize/realtime', { image_b64: b64 });
+
+    if (res.status === 'no_face') {
+      clearHUD();
+      if (_lastRealtimeId !== null) {
+        _lastRealtimeId = null;
+        clearResult();
+      }
+      return;
+    }
+
+    updateHUD(res);
+    if (res.status === 'identified' && res.person_id !== _lastRealtimeId) {
+      _lastRealtimeId = res.person_id;
+      showResult(res);
+    } else if (res.status !== 'identified') {
+      _lastRealtimeId = null;
+    }
+  } catch(e) {} finally { _scanning = false; }
+}
+
+async function captureFrame() {
+  stopRealtimeScan();
+  const b64 = captureB64(1.0);
+  if (!b64) { startRealtimeScan(); return; }
+  const btn = document.getElementById('btn-capture');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  const res = await API.post('/api/recognize', { image_b64: b64 });
+  showResult(res);
+  updateHUD(res);
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.66-.9l.82-1.2A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.66.9l.82 1.2A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> CAPTURAR`;
+  setTimeout(startRealtimeScan, 2000);
+}
+
+async function identifyFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  stopRealtimeScan();
+  const b64 = await fileToB64(file);
+  const res  = await API.post('/api/recognize', { image_b64: b64 });
+  showResult(res);
+}
+
+// ── Canvas helpers ─────────────────────────────────────────────────────────
+function captureB64(quality = 1.0) {
+  const video  = document.getElementById('cam-video');
+  const canvas = document.getElementById('cam-canvas');
+  if (!video.videoWidth) return null;
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+function fileToB64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// ── HUD ────────────────────────────────────────────────────────────────────
+function updateHUD(res) {
+  const hud = document.getElementById('hud');
+  if (res.status === 'no_model') {
+    hud.classList.add('visible');
+    document.getElementById('hud-status').innerHTML = `<span class="text-warn">⚠ MODELO NÃO TREINADO</span>`;
+    document.getElementById('hud-name').textContent = '';
+    document.getElementById('hud-pct').textContent  = '';
+    document.getElementById('hud-bar-fill').style.width = '0%';
+    return;
+  }
+  if (res.status === 'no_face' || res.status === 'feature_error') {
+    clearHUD(); // Sem rosto — HUD vazio, sem texto
+  } else if (res.status === 'identified' && res.person) {
+    hud.classList.add('visible');
+    document.getElementById('hud-status').innerHTML = `<span class="text-ok">● IDENTIFICADO</span>`;
+    document.getElementById('hud-name').textContent = res.person.name;
+    document.getElementById('hud-pct').textContent  = res.confidence + '%';
+    const fill = document.getElementById('hud-bar-fill');
+    fill.style.width = res.confidence + '%';
+    fill.style.background = res.confidence >= 75 ? 'var(--ok)' : res.confidence >= 45 ? 'var(--warn)' : 'var(--danger)';
+  } else if (res.status === 'unknown') {
+    // Rosto detectado mas nao reconhecido
+    hud.classList.add('visible');
+    document.getElementById('hud-status').innerHTML = `<span class="text-dim">○ ROSTO NAO CADASTRADO</span>`;
+    document.getElementById('hud-name').textContent = '';
+    document.getElementById('hud-pct').textContent  = '';
+    document.getElementById('hud-bar-fill').style.width = '0%';
+  } else {
+    clearHUD();
+  }
+}
+
+function clearHUD() {
+  document.getElementById('hud').classList.remove('visible');
+}
+
+// ── Result panel ───────────────────────────────────────────────────────────
+function showResult(res) {
+  const panel = document.getElementById('result-content');
+  if (res.status === 'no_model') {
+    panel.innerHTML = `<div class="no-result"><span style="font-size:32px">🤖</span><p>Modelo não treinado</p><p style="font-size:10px;opacity:.6">Cadastre pessoas e faça upload de fotos</p></div>`;
+    return;
+  }
+  if (res.status !== 'identified' || !res.person) {
+    panel.innerHTML = `<div class="no-result"><span style="font-size:32px">❓</span><p>Pessoa não identificada</p><p style="font-size:10px;opacity:.6">Conf: ${res.confidence || 0}%</p></div>`;
+    return;
+  }
+
+  const p = res.person;
+  const confCls = confClass(res.confidence);
+
+  panel.innerHTML = `
+    ${p.face_photo ? `<img src="${imgUrl(p.face_photo)}" class="result-photo" alt="${p.name}">` : ''}
+    <div class="result-name">${p.name}</div>
+    ${p.nickname ? `<div class="result-nickname">"${p.nickname}"</div>` : ''}
+    <div class="result-row">
+      ${riskBadge(p.risk_level)}
+      ${statusBadge(p.status)}
+    </div>
+    <div class="result-conf-wrap ${confCls}">
+      <div class="label">CONFIANÇA</div>
+      <div class="value">${res.confidence}%</div>
+      <div class="conf-bar"><div class="conf-bar-fill" style="width:${res.confidence}%"></div></div>
+    </div>
+    ${p.age || p.height_cm ? `<p class="text-dim text-xs mono" style="margin-bottom:8px">${[p.age && p.age+'anos', p.height_cm && p.height_cm+'cm', p.gender].filter(Boolean).join(' · ')}</p>` : ''}
+    <div class="result-actions">
+      <a href="/person/${p.id}" class="btn btn-ghost">👤 PERFIL</a>
+      <button class="btn btn-warn" onclick="openOccModal(${p.id})">➕ OCORRÊNCIA</button>
+    </div>
+  `;
+}
+
+function clearResult() {
+  document.getElementById('result-content').innerHTML = `
+    <div class="no-result">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        <circle cx="12" cy="12" r="10" stroke-dasharray="4 2"/>
+      </svg>
+      <p>Nenhuma identificação</p>
+      <p style="font-size:10px;opacity:.6">Inicie a câmera ou faça upload de foto</p>
+    </div>`;
+}
+
+// ── Occurrence modal ───────────────────────────────────────────────────────
+function openOccModal(personId) {
+  document.getElementById('occ-person-id').value = personId;
+  document.getElementById('occ-location').value  = '';
+  document.getElementById('occ-desc').value       = '';
+  _occSubsTI.set([]);
+  openModal('occ-modal');
+}
+
+async function saveOccurrence() {
+  const pid  = document.getElementById('occ-person-id').value;
+  const res  = await API.post(`/api/persons/${pid}/occurrences`, {
+    type:        document.getElementById('occ-type').value,
+    location:    document.getElementById('occ-location').value,
+    description: document.getElementById('occ-desc').value,
+    substances:  _occSubsTI.get(),
+  });
+  if (res.id) {
+    toast('Ocorrência registrada!', 'success');
+    closeModal('occ-modal');
+  } else {
+    toast('Erro ao salvar', 'error');
+  }
+}
+</script>
+{% endblock %}

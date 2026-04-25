@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}FaceWatch — Busca{% endblock %}
+
+{% block content %}
+<style>
+.search-wrap { max-width: 860px; margin: 0 auto; }
+.search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.search-bar .form-input { flex: 1; min-width: 180px; }
+.search-bar .form-select { width: 130px; flex-shrink: 0; }
+.persons-list { display: flex; flex-direction: column; gap: 8px; }
+#result-count { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
+</style>
+
+<div class="search-wrap">
+  <div class="flex items-center justify-between mb-4">
+    <h1 style="font-size:18px">Busca de Pessoas</h1>
+    <a href="/register" class="btn btn-primary btn-sm">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      CADASTRAR
+    </a>
+  </div>
+
+  <div class="search-bar">
+    <input type="text" id="q-input" class="form-input" placeholder="Buscar por nome, apelido, endereço..." oninput="debounceSearch()">
+    <select id="q-risk" class="form-select" onchange="doSearch()">
+      <option value="">Todos riscos</option>
+      <option value="high">Alto risco</option>
+      <option value="medium">Médio risco</option>
+      <option value="low">Baixo risco</option>
+    </select>
+    <select id="q-status" class="form-select" onchange="doSearch()">
+      <option value="">Todos status</option>
+      <option value="active">Ativo</option>
+      <option value="detained">Detido</option>
+      <option value="fugitive">Foragido</option>
+      <option value="released">Liberado</option>
+    </select>
+  </div>
+
+  <div id="result-count"></div>
+  <div class="persons-list" id="persons-list">
+    <div class="empty-state"><span class="icon">⏳</span>Carregando...</div>
+  </div>
+  <div class="pagination" id="pagination"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _page = 1;
+let _debounce = null;
+
+function debounceSearch() {
+  clearTimeout(_debounce);
+  _debounce = setTimeout(() => { _page = 1; doSearch(); }, 350);
+}
+
+async function doSearch() {
+  const q      = document.getElementById('q-input').value;
+  const risk   = document.getElementById('q-risk').value;
+  const status = document.getElementById('q-status').value;
+  const url    = `/api/persons?page=${_page}&per_page=20&q=${encodeURIComponent(q)}&risk=${risk}&status=${status}`;
+  const data   = await API.get(url);
+  renderList(data);
+}
+
+function renderList(data) {
+  const list = document.getElementById('persons-list');
+  document.getElementById('result-count').textContent =
+    `${data.total} pessoa${data.total !== 1 ? 's' : ''} encontrada${data.total !== 1 ? 's' : ''}`;
+
+  if (!data.persons.length) {
+    list.innerHTML = `<div class="empty-state"><span class="icon">🔍</span>Nenhum resultado</div>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = data.persons.map(p => `
+    <a class="person-card fade-in" href="/person/${p.id}">
+      ${avatarEl(p)}
+      <div class="person-info">
+        <div class="person-name">${p.name}${p.nickname ? ` <span class="text-dim text-xs">"${p.nickname}"</span>` : ''}</div>
+        <div class="person-meta">${[p.age && p.age+'a', p.skin_color, p.height_cm && p.height_cm+'cm'].filter(Boolean).join(' · ') || 'Sem dados físicos'}</div>
+        <div class="person-badges">
+          ${riskBadge(p.risk_level)}
+          ${statusBadge(p.status)}
+        </div>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2" style="flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+    </a>
+  `).join('');
+
+  // Pagination
+  renderPagination(data.page, data.pages);
+}
+
+function renderPagination(cur, total) {
+  const pag = document.getElementById('pagination');
+  if (total <= 1) { pag.innerHTML = ''; return; }
+  let html = '';
+  if (cur > 1) html += `<button class="page-btn" onclick="goPage(${cur-1})">‹</button>`;
+  const start = Math.max(1, cur - 2);
+  const end   = Math.min(total, cur + 2);
+  for (let i = start; i <= end; i++) {
+    html += `<button class="page-btn ${i === cur ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  if (cur < total) html += `<button class="page-btn" onclick="goPage(${cur+1})">›</button>`;
+  pag.innerHTML = html;
+}
+
+function goPage(p) {
+  _page = p;
+  doSearch();
+  window.scrollTo(0, 0);
+}
+
+// Initial load
+doSearch();
+</script>
+{% endblock %}

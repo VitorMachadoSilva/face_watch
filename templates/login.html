@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}FaceWatch — Login{% endblock %}
+
+{% block content %}
+<style>
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  margin-top: -24px; /* cancel main-content padding */
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px 32px;
+  box-shadow: var(--shadow), var(--shadow-accent);
+}
+.login-brand {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.login-brand .icon {
+  width: 60px; height: 60px;
+  background: var(--accent);
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  box-shadow: 0 0 30px rgba(0,200,255,.3);
+}
+.login-brand h1 {
+  font-family: var(--mono);
+  font-size: 22px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.login-brand p {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: .1em;
+  margin-top: 4px;
+}
+.login-error {
+  background: rgba(255,59,85,.1);
+  border: 1px solid rgba(255,59,85,.3);
+  color: var(--danger);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  display: none;
+}
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,200,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,255,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+.login-card { position: relative; z-index: 1; }
+</style>
+
+<div class="grid-bg"></div>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0a0d11" stroke-width="2.5">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          <path d="M2 2 L6 6 M22 2 L18 6 M2 22 L6 18" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <h1>FaceWatch</h1>
+      <p>Sistema de Identificação Operacional</p>
+    </div>
+
+    <div class="login-error" id="login-error">Credenciais inválidas.</div>
+
+    <div class="form-group">
+      <label class="form-label">Usuário</label>
+      <input id="username" type="text" class="form-input" placeholder="admin" autocomplete="username" autofocus>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha</label>
+      <input id="password" type="password" class="form-input" placeholder="••••••••" autocomplete="current-password">
+    </div>
+
+    <button class="btn btn-primary btn-block btn-lg mt-4" id="login-btn" onclick="doLogin()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      ACESSAR SISTEMA
+    </button>
+
+    <p style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center;margin-top:20px;">
+      Acesso restrito a agentes autorizados
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+async function doLogin() {
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+  err.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  const res = await API.post('/api/login', {
+    username: document.getElementById('username').value,
+    password: document.getElementById('password').value
+  });
+
+  if (res.ok) {
+    location.href = '/identify';
+  } else {
+    err.textContent = res.error || 'Erro ao autenticar.';
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> ACESSAR SISTEMA`;
+  }
+}
+</script>
+{% endblock %}
