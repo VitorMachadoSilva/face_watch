@@ -14,15 +14,36 @@
 .search-bar .form-select { width: 130px; flex-shrink: 0; }
 .persons-list { display: flex; flex-direction: column; gap: 8px; }
 #result-count { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
+
+/* Novo: estilo botão retrain */
+.btn-warning {
+  background: #f59e0b;
+  color: #000;
+}
+.btn-warning:hover {
+  opacity: 0.9;
+}
 </style>
 
 <div class="search-wrap">
   <div class="flex items-center justify-between mb-4">
     <h1 style="font-size:18px">Busca de Pessoas</h1>
-    <a href="/register" class="btn btn-primary btn-sm">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      CADASTRAR
-    </a>
+
+    <div style="display:flex; gap:8px;">
+      <!-- BOTÃO RETRAIN -->
+      <button onclick="retrainModel()" class="btn btn-warning btn-sm" id="retrain-btn">
+        🔄 TREINAR MODELO
+      </button>
+
+      <!-- BOTÃO CADASTRAR -->
+      <a href="/register" class="btn btn-primary btn-sm">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        CADASTRAR
+      </a>
+    </div>
   </div>
 
   <div class="search-bar">
@@ -69,6 +90,36 @@ async function doSearch() {
   renderList(data);
 }
 
+/* =========================
+   NOVO: RETRAIN MODEL
+========================= */
+async function retrainModel() {
+  if (!confirm("Deseja realmente re-treinar o modelo? Isso pode levar alguns minutos.")) return;
+
+  const btn = document.getElementById("retrain-btn");
+  btn.disabled = true;
+  btn.innerText = "⏳ TREINANDO...";
+
+  try {
+    // Dispara o treino (sem esperar terminar pra evitar timeout)
+    fetch("/api/retrain", {
+      method: "POST"
+    });
+
+    alert("Treinamento iniciado! Pode levar alguns minutos.");
+
+  } catch (err) {
+    console.error(err);
+    alert("Erro ao iniciar treinamento.");
+  }
+
+  // Libera botão depois de alguns segundos (evita spam)
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.innerText = "🔄 TREINAR MODELO";
+  }, 5000);
+}
+
 function renderList(data) {
   const list = document.getElementById('persons-list');
   document.getElementById('result-count').textContent =
@@ -91,11 +142,12 @@ function renderList(data) {
           ${statusBadge(p.status)}
         </div>
       </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2" style="flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2" style="flex-shrink:0">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
     </a>
   `).join('');
 
-  // Pagination
   renderPagination(data.page, data.pages);
 }
 
