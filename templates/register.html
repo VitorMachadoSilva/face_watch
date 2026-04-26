@@ -5,22 +5,13 @@
 <style>
 .register-grid {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr 360px;
   gap: 16px;
-  max-width: 960px;
+  max-width: 980px;
   margin: 0 auto;
 }
-@media (max-width: 768px) {
-  .register-grid { grid-template-columns: 1fr; }
-}
-.photo-thumb-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-.photo-thumb {
-  width: 72px; height: 72px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border2);
-  object-fit: cover;
-  cursor: pointer;
-}
+@media (max-width: 800px) { .register-grid { grid-template-columns: 1fr; } }
+
 .section-title {
   font-family: var(--mono);
   font-size: 11px;
@@ -32,19 +23,113 @@
   border-bottom: 1px solid var(--border);
 }
 .section-title:first-child { margin-top: 0; }
+
+/* ── Foto slots ── */
+.face-slots {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.face-slot {
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  border: 2px dashed var(--border2);
+  background: var(--panel2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--trans);
+  position: relative;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  gap: 4px;
+}
+.face-slot:hover { border-color: var(--accent); color: var(--accent); }
+.face-slot.filled { border-style: solid; border-color: var(--ok); }
+.face-slot.filled:hover { border-color: var(--danger); }
+.face-slot img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  position: absolute; inset: 0;
+}
+.face-slot .slot-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: var(--trans);
+  font-size: 18px;
+}
+.face-slot.filled:hover .slot-overlay { opacity: 1; }
+.face-slot .slot-num {
+  font-size: 18px;
+  font-weight: 700;
+  opacity: .3;
+}
+
+/* Contador de fotos */
+.photo-counter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.photo-counter .dots {
+  display: flex;
+  gap: 4px;
+}
+.photo-counter .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border2);
+  transition: var(--trans);
+}
+.photo-counter .dot.filled   { background: var(--ok); }
+.photo-counter .dot.required { background: var(--warn); }
+
+.photo-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  background: var(--panel2);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  border-left: 2px solid var(--accent);
+}
+
+/* Camera para captura */
+.cam-mini-wrap {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 4/3;
+  margin-bottom: 8px;
+  display: none;
+}
+.cam-mini-wrap.active { display: block; }
+#reg-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-mini-wrap.mirrored #reg-video { transform: scaleX(-1); }
+
+.cam-mini-controls { display: flex; gap: 6px; }
 </style>
 
-<div style="max-width:960px;margin:0 auto">
+<div style="max-width:980px;margin:0 auto">
   <div class="flex items-center justify-between mb-4">
     <h1 style="font-size:18px">Novo Cadastro</h1>
-    <span class="mono text-dim text-xs">ID: <span id="person-id-label">—</span></span>
+    <a href="/search" class="btn btn-ghost btn-sm">← Busca</a>
   </div>
 
   <div class="register-grid">
-    <!-- ═══ LEFT: FORM ═══ -->
+    <!-- ═══ ESQUERDA: FORMULÁRIO ═══ -->
     <div class="card">
       <p class="section-title">Identificação</p>
-
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Nome Completo *</label>
@@ -55,7 +140,6 @@
           <input type="text" id="f-nick" class="form-input" placeholder="Apelido">
         </div>
       </div>
-
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Gênero</label>
@@ -67,11 +151,10 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Idade (aprox.)</label>
+          <label class="form-label">Idade</label>
           <input type="number" id="f-age" class="form-input" placeholder="Ex: 28">
         </div>
       </div>
-
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Cor de Pele</label>
@@ -89,14 +172,12 @@
           <input type="number" id="f-height" class="form-input" placeholder="Ex: 175">
         </div>
       </div>
-
       <div class="form-group">
-        <label class="form-label">Endereço / Última localização conhecida</label>
+        <label class="form-label">Endereço / Última localização</label>
         <input type="text" id="f-address" class="form-input" placeholder="Rua, número, bairro...">
       </div>
 
       <p class="section-title">Perfil Operacional</p>
-
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Nível de Risco</label>
@@ -116,80 +197,120 @@
           </select>
         </div>
       </div>
-
       <div class="form-group">
         <label class="form-label">Locais Frequentes</label>
-        <input type="text" id="f-places-input" class="form-input" placeholder="Digite e pressione Enter">
+        <input type="text" id="f-places-input" class="form-input" placeholder="Digite e Enter">
         <div class="tag-list" id="f-places-tags"></div>
       </div>
-
       <div class="form-group">
-        <label class="form-label">Substâncias Associadas</label>
-        <input type="text" id="f-subs-input" class="form-input" placeholder="Digite e pressione Enter">
+        <label class="form-label">Substâncias</label>
+        <input type="text" id="f-subs-input" class="form-input" placeholder="Digite e Enter">
         <div class="tag-list" id="f-subs-tags"></div>
       </div>
 
       <p class="section-title">Características Físicas</p>
-
       <div class="form-group">
         <label class="form-label">Tatuagens</label>
-        <textarea id="f-tattoos" class="form-textarea" rows="2" placeholder="Descreva as tatuagens (localização, motivo...)"></textarea>
+        <textarea id="f-tattoos" class="form-textarea" rows="2" placeholder="Localização, motivo..."></textarea>
       </div>
-
       <div class="form-group">
-        <label class="form-label">Marcas Físicas / Cicatrizes</label>
-        <textarea id="f-marks" class="form-textarea" rows="2" placeholder="Cicatrizes, marcas de nascença, sinais..."></textarea>
+        <label class="form-label">Marcas / Cicatrizes</label>
+        <textarea id="f-marks" class="form-textarea" rows="2"></textarea>
       </div>
-
       <div class="form-group">
-        <label class="form-label">Observações Gerais</label>
-        <textarea id="f-obs" class="form-textarea" rows="3" placeholder="Informações adicionais relevantes..."></textarea>
+        <label class="form-label">Observações</label>
+        <textarea id="f-obs" class="form-textarea" rows="3"></textarea>
       </div>
     </div>
 
-    <!-- ═══ RIGHT: PHOTOS ═══ -->
+    <!-- ═══ DIREITA: FOTOS ═══ -->
     <div>
+      <!-- Fotos de Rosto -->
       <div class="card mb-3">
         <div class="card-header">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="8" r="4"/></svg>
-          <h2>Foto do Rosto</h2>
-        </div>
-
-        <div id="face-drop" class="img-drop-zone" onclick="document.getElementById('face-file').click()">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;display:block;opacity:.4">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2">
             <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
           </svg>
-          <p>Toque para selecionar foto do rosto</p>
-          <p style="font-size:10px;margin-top:4px;opacity:.6">JPG, PNG ou WEBP</p>
-          <input type="file" id="face-file" accept="image/*" onchange="previewFace(event)">
+          <h2>Fotos de Rosto</h2>
+          <span class="subtitle" id="photo-count-label">0 / 5</span>
         </div>
-        <img id="face-preview" class="img-preview hidden" alt="Preview rosto">
-        <p class="mono text-xs text-dim mt-2" style="font-size:10px;">
-          ⚡ Foto aceita mesmo sem rosto detectado — modelo retreina automaticamente
-        </p>
+
+        <!-- Contador visual -->
+        <div class="photo-counter mb-3">
+          <div class="dots" id="photo-dots">
+            <div class="dot" id="dot-0"></div>
+            <div class="dot" id="dot-1"></div>
+            <div class="dot" id="dot-2"></div>
+            <div class="dot" id="dot-3"></div>
+            <div class="dot" id="dot-4"></div>
+          </div>
+          <span id="photo-status-text" class="mono text-xs text-dim">Mínimo 3 fotos</span>
+        </div>
+
+        <!-- 5 slots de foto -->
+        <div class="face-slots" id="face-slots">
+          <!-- gerado pelo JS -->
+        </div>
+
+        <div class="photo-hint mb-3">
+          📸 <strong>Dicas para melhor reconhecimento:</strong><br>
+          · Foto frontal — olhando para a câmera<br>
+          · Levemente de lado (esq. e dir.)<br>
+          · Com e sem óculos / boné<br>
+          · Luz diferente (interna e externa)
+        </div>
+
+        <!-- Camera de captura -->
+        <div class="cam-mini-wrap" id="cam-mini-wrap">
+          <video id="reg-video" autoplay playsinline muted></video>
+          <canvas id="reg-canvas" style="display:none"></canvas>
+        </div>
+        <div class="cam-mini-controls" id="cam-mini-controls" style="display:none">
+          <button class="btn btn-ghost btn-sm" onclick="flipRegCam()">↔ Trocar</button>
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="captureRegPhoto()">
+            📸 Capturar
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="stopRegCam()">✕</button>
+        </div>
+
+        <div class="flex gap-2 mt-2">
+          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="openRegCam()">
+            📷 Câmera
+          </button>
+          <label class="btn btn-ghost btn-sm" style="flex:1;cursor:pointer">
+            📁 Arquivo
+            <input type="file" accept="image/*" multiple onchange="onFaceFiles(event)" style="display:none">
+          </label>
+        </div>
       </div>
 
+      <!-- Fotos extras -->
       <div class="card mb-3">
         <div class="card-header">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
           <h2>Fotos Extras</h2>
         </div>
         <div class="img-drop-zone" onclick="document.getElementById('extra-files').click()">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 6px;display:block;opacity:.4">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-          </svg>
-          <p>Corpo, tatuagens, documentos</p>
-          <input type="file" id="extra-files" accept="image/*" multiple onchange="previewExtras(event)">
+          <p style="font-size:12px">Corpo, tatuagens, documentos</p>
+          <input type="file" id="extra-files" accept="image/*" multiple onchange="previewExtras(event)" style="display:none">
         </div>
-        <div class="photo-thumb-row" id="extra-thumbs"></div>
+        <div id="extra-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
       </div>
 
-      <button class="btn btn-primary btn-block btn-lg" id="save-btn" onclick="savePerson()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      <!-- Salvar -->
+      <button class="btn btn-primary btn-block btn-lg" id="save-btn" onclick="savePerson()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+        </svg>
         SALVAR CADASTRO
       </button>
-      <p class="mono text-xs text-dim mt-2" style="text-align:center">
-        Modelo facial será retreinado automaticamente
+      <p class="mono text-xs text-dim mt-2" id="save-hint" style="text-align:center">
+        Adicione pelo menos 3 fotos de rosto para salvar
       </p>
     </div>
   </div>
@@ -198,52 +319,172 @@
 
 {% block scripts %}
 <script>
-let _placesTI, _subsTI;
-let _faceB64 = null;
+// ── Estado ────────────────────────────────────────────────────────────────
+let _faceB64s  = [];   // até 5 base64 de fotos de rosto
 let _extraB64s = [];
+let _placesTI, _subsTI;
+let _regStream = null;
+let _regFacing = 'environment';
 
 // Tag inputs
 _placesTI = TagInput(null, document.getElementById('f-places-input'), document.getElementById('f-places-tags'));
 _subsTI   = TagInput(null, document.getElementById('f-subs-input'),   document.getElementById('f-subs-tags'));
 
-function previewFace(ev) {
-  const file = ev.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    _faceB64 = e.target.result;
-    document.getElementById('face-preview').src = _faceB64;
-    document.getElementById('face-preview').classList.remove('hidden');
-    document.getElementById('face-drop').style.display = 'none';
-  };
-  reader.readAsDataURL(file);
+// ── Slots de foto ─────────────────────────────────────────────────────────
+function renderSlots() {
+  const container = document.getElementById('face-slots');
+  container.innerHTML = '';
+
+  for (let i = 0; i < 5; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'face-slot' + (_faceB64s[i] ? ' filled' : '');
+    slot.dataset.idx = i;
+
+    if (_faceB64s[i]) {
+      slot.innerHTML = `
+        <img src="${_faceB64s[i]}" alt="Foto ${i+1}">
+        <div class="slot-overlay">🗑</div>`;
+      slot.onclick = () => removePhoto(i);
+    } else {
+      slot.innerHTML = `<span class="slot-num">${i+1}</span><span>foto</span>`;
+      slot.onclick   = () => document.querySelector('#extra-files + *') || null;
+    }
+    container.appendChild(slot);
+  }
+
+  updatePhotoUI();
+}
+
+function updatePhotoUI() {
+  const n = _faceB64s.length;
+
+  // Dots
+  for (let i = 0; i < 5; i++) {
+    const dot = document.getElementById(`dot-${i}`);
+    dot.className = 'dot' + (i < n ? ' filled' : (i < 3 ? ' required' : ''));
+  }
+
+  // Label
+  document.getElementById('photo-count-label').textContent = `${n} / 5`;
+
+  // Status text
+  const statusEl = document.getElementById('photo-status-text');
+  if (n === 0)      { statusEl.textContent = 'Mínimo 3 fotos obrigatórias'; statusEl.style.color = 'var(--text-dim)'; }
+  else if (n < 3)   { statusEl.textContent = `Mais ${3-n} foto(s) necessária(s)`; statusEl.style.color = 'var(--warn)'; }
+  else if (n < 5)   { statusEl.textContent = `✓ Pronto! (${n}/5 — pode adicionar mais)`; statusEl.style.color = 'var(--ok)'; }
+  else              { statusEl.textContent = '✓ 5 fotos — máximo atingido'; statusEl.style.color = 'var(--ok)'; }
+
+  // Botão salvar
+  const btn  = document.getElementById('save-btn');
+  const hint = document.getElementById('save-hint');
+  const ok   = n >= 3 && document.getElementById('f-name').value.trim();
+  btn.disabled = !ok;
+  hint.textContent = n < 3
+    ? `Adicione pelo menos ${3-n} foto(s) de rosto para salvar`
+    : ok ? 'Pronto para salvar!' : 'Preencha o nome para salvar';
+}
+
+function removePhoto(idx) {
+  _faceB64s.splice(idx, 1);
+  renderSlots();
+}
+
+function addPhoto(b64) {
+  if (_faceB64s.length >= 5) { toast('Limite de 5 fotos atingido', 'warn'); return; }
+  _faceB64s.push(b64);
+  renderSlots();
+}
+
+// ── Arquivo ───────────────────────────────────────────────────────────────
+function onFaceFiles(ev) {
+  const files = Array.from(ev.target.files).slice(0, 5 - _faceB64s.length);
+  files.forEach(f => {
+    const r = new FileReader();
+    r.onload = e => addPhoto(e.target.result);
+    r.readAsDataURL(f);
+  });
+  ev.target.value = '';
 }
 
 function previewExtras(ev) {
   const thumbs = document.getElementById('extra-thumbs');
   Array.from(ev.target.files).forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
+    const r = new FileReader();
+    r.onload = e => {
       _extraB64s.push(e.target.result);
       const img = document.createElement('img');
       img.src = e.target.result;
-      img.className = 'photo-thumb';
+      img.style.cssText = 'width:64px;height:64px;object-fit:cover;border-radius:4px;border:1px solid var(--border2)';
       thumbs.appendChild(img);
     };
-    reader.readAsDataURL(file);
+    r.readAsDataURL(file);
   });
 }
 
+// ── Câmera inline ─────────────────────────────────────────────────────────
+async function openRegCam() {
+  if (_faceB64s.length >= 5) { toast('Limite de 5 fotos atingido', 'warn'); return; }
+  try {
+    _regStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: _regFacing }, width: { ideal: 640 } }, audio: false
+    });
+    const video = document.getElementById('reg-video');
+    video.srcObject = _regStream;
+    document.getElementById('cam-mini-wrap').classList.add('active');
+    document.getElementById('cam-mini-controls').style.display = 'flex';
+
+    // Espelha câmera frontal
+    const wrap = document.getElementById('cam-mini-wrap');
+    if (_regFacing === 'user') wrap.classList.add('mirrored');
+    else wrap.classList.remove('mirrored');
+  } catch(e) {
+    toast('Câmera indisponível: ' + e.message, 'error');
+  }
+}
+
+function stopRegCam() {
+  if (_regStream) { _regStream.getTracks().forEach(t => t.stop()); _regStream = null; }
+  document.getElementById('cam-mini-wrap').classList.remove('active');
+  document.getElementById('cam-mini-controls').style.display = 'none';
+}
+
+async function flipRegCam() {
+  _regFacing = _regFacing === 'environment' ? 'user' : 'environment';
+  stopRegCam();
+  await openRegCam();
+}
+
+function captureRegPhoto() {
+  const video  = document.getElementById('reg-video');
+  const canvas = document.getElementById('reg-canvas');
+  if (!video.videoWidth) return;
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  // Desfaz espelhamento antes de salvar
+  if (_regFacing === 'user') {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, 0, 0);
+  addPhoto(canvas.toDataURL('image/jpeg', 0.9));
+  // Flash visual
+  document.getElementById('cam-mini-wrap').style.filter = 'brightness(3)';
+  setTimeout(() => document.getElementById('cam-mini-wrap').style.filter = '', 120);
+}
+
+// ── Salvar ────────────────────────────────────────────────────────────────
 async function savePerson() {
   const name = document.getElementById('f-name').value.trim();
-  if (!name) { toast('Nome é obrigatório', 'warn'); return; }
+  if (!name)             { toast('Nome é obrigatório', 'warn'); return; }
+  if (_faceB64s.length < 3) { toast('Adicione pelo menos 3 fotos de rosto', 'warn'); return; }
 
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> SALVANDO...';
 
   try {
-    // 1. Create person
+    // 1. Cria pessoa
     const person = await API.post('/api/persons', {
       name:            name,
       nickname:        document.getElementById('f-nick').value,
@@ -260,24 +501,23 @@ async function savePerson() {
       risk_level:      document.getElementById('f-risk').value,
       status:          document.getElementById('f-status').value,
     });
+    if (!person.id) throw new Error(person.error || 'Erro ao criar cadastro');
 
-    if (!person.id) throw new Error(person.error || 'Erro ao criar pessoa');
-    document.getElementById('person-id-label').textContent = '#' + person.id;
-
-    // 2. Upload face photo
-    if (_faceB64) {
-      btn.innerHTML = '<span class="spinner"></span> ENVIANDO FOTO...';
-      const r = await API.post(`/api/persons/${person.id}/photo/face`, { image_b64: _faceB64 });
-      if (!r.ok) throw new Error('Erro ao enviar foto do rosto');
+    // 2. Upload fotos de rosto (uma por vez)
+    for (let i = 0; i < _faceB64s.length; i++) {
+      btn.innerHTML = `<span class="spinner"></span> FOTO ${i+1}/${_faceB64s.length}...`;
+      const r = await API.post(`/api/persons/${person.id}/photo/face`, { image_b64: _faceB64s[i] });
+      if (!r.ok) throw new Error(`Erro ao enviar foto ${i+1}`);
     }
 
-    // 3. Upload extra photos
+    // 3. Upload fotos extras
     for (const b64 of _extraB64s) {
       await API.post(`/api/persons/${person.id}/photo/extra`, { image_b64: b64 });
     }
 
-    toast(`${name} cadastrado com sucesso!`, 'success', 4000);
-    setTimeout(() => location.href = `/person/${person.id}`, 1500);
+    stopRegCam();
+    toast(`${name} cadastrado! Treinando modelo...`, 'success', 4000);
+    setTimeout(() => location.href = `/person/${person.id}`, 1800);
 
   } catch(e) {
     toast('Erro: ' + e.message, 'error');
@@ -285,5 +525,11 @@ async function savePerson() {
     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> SALVAR CADASTRO`;
   }
 }
+
+// Atualiza botão quando nome muda
+document.getElementById('f-name').addEventListener('input', updatePhotoUI);
+
+// Inicializa slots
+renderSlots();
 </script>
 {% endblock %}

@@ -52,6 +52,54 @@
 .occ-date { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
 .occ-loc { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
 .occ-desc { font-size: 13px; color: var(--text); }
+
+.face-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+.face-photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 2px solid var(--ok);
+  cursor: pointer;
+}
+.face-photo-item img { width:100%;height:100%;object-fit:cover;display:block; }
+.face-photo-item .del-btn {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 18px; height: 18px;
+  background: rgba(255,59,85,.8);
+  border: none; border-radius: 50%;
+  color: #fff; font-size: 11px;
+  cursor: pointer; display: none;
+  align-items: center; justify-content: center;
+  line-height: 1;
+}
+.face-photo-item:hover .del-btn { display: flex; }
+.face-photo-add {
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  border: 2px dashed var(--border2);
+  background: var(--panel2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: var(--trans);
+  font-size: 20px; color: var(--text-dim);
+}
+.face-photo-add:hover { border-color: var(--accent); color: var(--accent); }
+.face-count-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-left: auto;
+}
+.face-count-ok   { background: rgba(0,230,118,.1); color: var(--ok); }
+.face-count-warn { background: rgba(255,170,0,.1);  color: var(--warn); }
+
 .extra-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 8px; }
 .extra-photo { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border2); cursor: pointer; }
 </style>
@@ -181,13 +229,37 @@ function render() {
           ? `<img src="${imgUrl(p.face_photo)}" class="person-face-img" alt="${p.name}">`
           : `<div class="person-face-placeholder">👤</div>`}
 
+        <!-- Fotos de rosto cadastradas -->
+        <div style="margin-top:10px">
+          <div class="flex items-center mb-2">
+            <span class="mono text-xs text-dim">FOTOS DE ROSTO</span>
+            <span class="face-count-badge ${(p.face_photos||[]).length >= 3 ? 'face-count-ok' : 'face-count-warn'}">
+              ${(p.face_photos||[]).length}/5
+            </span>
+          </div>
+          <div class="face-photos-grid" id="face-photos-grid">
+            ${(p.face_photos||[]).map((ph, i) => `
+              <div class="face-photo-item">
+                <img src="${imgUrl(ph)}" alt="Rosto ${i+1}">
+                <button class="del-btn" onclick="deleteFacePhoto(${i})" title="Remover">×</button>
+              </div>
+            `).join('')}
+            ${(p.face_photos||[]).length < 5 ? `
+              <label class="face-photo-add" title="Adicionar foto de rosto">
+                +
+                <input type="file" accept="image/*" onchange="uploadFace(event)" style="display:none">
+              </label>
+            ` : ''}
+          </div>
+          ${(p.face_photos||[]).length < 3 ? `
+            <p class="mono text-xs" style="color:var(--warn);margin-top:6px">
+              ⚠ Adicione ${3-(p.face_photos||[]).length} foto(s) para melhorar o reconhecimento
+            </p>` : ''}
+        </div>
+
         <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
           <button class="btn btn-ghost btn-block" onclick="openOccModal()">➕ OCORRÊNCIA</button>
           <button class="btn btn-ghost btn-block" onclick="openEditModal()">✏️ EDITAR</button>
-          <label class="btn btn-ghost btn-block" style="cursor:pointer">
-            📷 NOVA FOTO ROSTO
-            <input type="file" accept="image/*" onchange="uploadFace(event)" style="display:none">
-          </label>
           <button class="btn btn-danger btn-block btn-sm" onclick="deletePerson()">🗑 EXCLUIR</button>
         </div>
 
@@ -307,13 +379,32 @@ async function saveEdit() {
 async function uploadFace(ev) {
   const file = ev.target.files[0];
   if (!file) return;
+  ev.target.value = '';
+
+  const faces = _person.face_photos || [];
+  if (faces.length >= 5) { toast('Limite de 5 fotos atingido', 'warn'); return; }
+
   const b64 = await new Promise((res, rej) => {
     const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file);
   });
-  toast('Enviando foto...', 'info', 10000);
+
+  toast('Enviando foto...', 'info', 8000);
   const result = await API.post(`/api/persons/${PERSON_ID}/photo/face`, { image_b64: b64 });
   if (result.ok) {
-    toast('Foto atualizada e modelo retreinado!', 'success');
+    const total = result.total || (faces.length + 1);
+    toast(`Foto adicionada (${total}/5)! ${total >= 3 ? 'Treinando modelo...' : 'Adicione mais ' + (3-total) + ' foto(s).'}`, 'success', 4000);
+    _person = await API.get(`/api/persons/${PERSON_ID}`);
+    render();
+  } else {
+    toast('Erro: ' + (result.error || 'desconhecido'), 'error');
+  }
+}
+
+async function deleteFacePhoto(idx) {
+  if (!confirm('Remover esta foto de rosto?')) return;
+  const result = await API.del(`/api/persons/${PERSON_ID}/photo/face/${idx}`);
+  if (result.ok) {
+    toast(`Foto removida (${result.total}/5)`, 'warn');
     _person = await API.get(`/api/persons/${PERSON_ID}`);
     render();
   } else {

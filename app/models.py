@@ -40,7 +40,8 @@ class Person(db.Model):
     observations    = db.Column(db.Text)
     risk_level      = db.Column(db.String(10), default="low")    # low | medium | high
     status          = db.Column(db.String(20), default="active") # active | detained | fugitive | released
-    face_photo      = db.Column(db.String(256))   # relative path
+    face_photo      = db.Column(db.String(256))   # primeira foto (thumbnail)
+    face_photos     = db.Column(db.Text)           # JSON array de todas as fotos de rosto
     extra_photos    = db.Column(db.Text)           # JSON array of paths
     created_at      = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at      = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -66,6 +67,7 @@ class Person(db.Model):
             "risk_level":      self.risk_level,
             "status":          self.status,
             "face_photo":      self.face_photo,
+            "face_photos":     json.loads(self.face_photos or "[]"),
             "extra_photos":    json.loads(self.extra_photos or "[]"),
             "created_at":      self.created_at.isoformat() if self.created_at else None,
             "updated_at":      self.updated_at.isoformat() if self.updated_at else None,
