@@ -40,11 +40,32 @@ def create_app():
     # ── Init DB + seed ──────────────────────────────────────
     with app.app_context():
         db.create_all()
+        _migrate_db()      # adiciona colunas novas sem apagar dados existentes
         _seed_users()
-        # Load existing model
         FaceService.load_model(app.config["MODEL_PATH"])
 
     return app
+
+
+def _migrate_db():
+    """Adiciona colunas novas ao banco existente sem quebrar dados anteriores.
+    Cada ALTER TABLE é ignorado silenciosamente se a coluna já existir.
+    """
+    from .models import db
+    from sqlalchemy import text
+
+    migrations = [
+        "ALTER TABLE persons ADD COLUMN face_photos TEXT",
+        "ALTER TABLE persons ADD COLUMN cpf VARCHAR(14)",
+    ]
+
+    with db.engine.connect() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass  # coluna já existe — ignora
 
 
 def _seed_users():

@@ -4,6 +4,37 @@
 {% block content %}
 <style>
 .search-wrap { max-width: 860px; margin: 0 auto; }
+
+/* Abas de modo de busca */
+.search-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  background: var(--panel2);
+  padding: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.search-tab {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: calc(var(--radius) - 2px);
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: var(--trans);
+}
+.search-tab.active {
+  background: var(--panel);
+  color: var(--accent);
+  border: 1px solid var(--border2);
+}
+
 .search-bar {
   display: flex;
   gap: 8px;
@@ -15,52 +46,72 @@
 .persons-list { display: flex; flex-direction: column; gap: 8px; }
 #result-count { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
 
-/* Novo: estilo botão retrain */
-.btn-warning {
-  background: #f59e0b;
-  color: #000;
-}
-.btn-warning:hover {
-  opacity: 0.9;
+/* Badge CPF */
+.cpf-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: var(--text-dim);
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
 }
 </style>
 
 <div class="search-wrap">
   <div class="flex items-center justify-between mb-4">
     <h1 style="font-size:18px">Busca de Pessoas</h1>
-
-    <div style="display:flex; gap:8px;">
-      <!-- BOTÃO RETRAIN -->
-      <button onclick="retrainModel()" class="btn btn-warning btn-sm" id="retrain-btn">
-        🔄 TREINAR MODELO
-      </button>
-
-      <!-- BOTÃO CADASTRAR -->
-      <a href="/register" class="btn btn-primary btn-sm">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        CADASTRAR
-      </a>
-    </div>
+    <a href="/register" class="btn btn-primary btn-sm">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      CADASTRAR
+    </a>
   </div>
 
-  <div class="search-bar">
-    <input type="text" id="q-input" class="form-input" placeholder="Buscar por nome, apelido, endereço..." oninput="debounceSearch()">
-    <select id="q-risk" class="form-select" onchange="doSearch()">
-      <option value="">Todos riscos</option>
-      <option value="high">Alto risco</option>
-      <option value="medium">Médio risco</option>
-      <option value="low">Baixo risco</option>
-    </select>
-    <select id="q-status" class="form-select" onchange="doSearch()">
-      <option value="">Todos status</option>
-      <option value="active">Ativo</option>
-      <option value="detained">Detido</option>
-      <option value="fugitive">Foragido</option>
-      <option value="released">Liberado</option>
-    </select>
+  <!-- Abas: Geral / CPF -->
+  <div class="search-tabs">
+    <button class="search-tab active" id="tab-geral" onclick="setTab('geral')">🔍 Busca Geral</button>
+    <button class="search-tab" id="tab-cpf" onclick="setTab('cpf')">📄 Busca por CPF</button>
+  </div>
+
+  <!-- Busca Geral -->
+  <div id="panel-geral">
+    <div class="search-bar">
+      <input type="text" id="q-input" class="form-input"
+             placeholder="Nome, apelido, tatuagens, marcas físicas, observações..."
+             oninput="debounceSearch()">
+      <select id="q-risk" class="form-select" onchange="doSearch()">
+        <option value="">Todos riscos</option>
+        <option value="high">Alto risco</option>
+        <option value="medium">Médio risco</option>
+        <option value="low">Baixo risco</option>
+      </select>
+      <select id="q-status" class="form-select" onchange="doSearch()">
+        <option value="">Todos status</option>
+        <option value="active">Ativo</option>
+        <option value="detained">Detido</option>
+        <option value="fugitive">Foragido</option>
+        <option value="released">Liberado</option>
+      </select>
+    </div>
+    <p class="mono text-xs text-dim mb-3" style="margin-top:-8px">
+      Pesquisa em: nome · apelido · endereço · tatuagens · marcas físicas · observações
+    </p>
+  </div>
+
+  <!-- Busca por CPF -->
+  <div id="panel-cpf" style="display:none">
+    <div class="search-bar">
+      <input type="text" id="cpf-input" class="form-input"
+             placeholder="000.000.000-00 ou só os números"
+             maxlength="14"
+             oninput="formatCPFInput(this); debounceSearch()"
+             style="letter-spacing:.08em; font-family:var(--mono)">
+      <button class="btn btn-ghost" onclick="clearCPF()">✕ Limpar</button>
+    </div>
+    <p class="mono text-xs text-dim mb-3" style="margin-top:-8px">
+      Busca exata pelo CPF cadastrado — com ou sem pontuação
+    </p>
   </div>
 
   <div id="result-count"></div>
@@ -73,8 +124,25 @@
 
 {% block scripts %}
 <script>
-let _page = 1;
+let _page    = 1;
 let _debounce = null;
+let _mode    = 'geral';   // 'geral' | 'cpf'
+
+function setTab(mode) {
+  _mode = mode;
+  _page = 1;
+
+  document.getElementById('tab-geral').classList.toggle('active', mode === 'geral');
+  document.getElementById('tab-cpf').classList.toggle('active',   mode === 'cpf');
+  document.getElementById('panel-geral').style.display = mode === 'geral' ? 'block' : 'none';
+  document.getElementById('panel-cpf').style.display   = mode === 'cpf'   ? 'block' : 'none';
+
+  if (mode === 'cpf') {
+    document.getElementById('cpf-input').focus();
+  }
+
+  doSearch();
+}
 
 function debounceSearch() {
   clearTimeout(_debounce);
@@ -82,42 +150,26 @@ function debounceSearch() {
 }
 
 async function doSearch() {
-  const q      = document.getElementById('q-input').value;
-  const risk   = document.getElementById('q-risk').value;
-  const status = document.getElementById('q-status').value;
-  const url    = `/api/persons?page=${_page}&per_page=20&q=${encodeURIComponent(q)}&risk=${risk}&status=${status}`;
-  const data   = await API.get(url);
-  renderList(data);
-}
+  let url;
 
-/* =========================
-   NOVO: RETRAIN MODEL
-========================= */
-async function retrainModel() {
-  if (!confirm("Deseja realmente re-treinar o modelo? Isso pode levar alguns minutos.")) return;
-
-  const btn = document.getElementById("retrain-btn");
-  btn.disabled = true;
-  btn.innerText = "⏳ TREINANDO...";
-
-  try {
-    // Dispara o treino (sem esperar terminar pra evitar timeout)
-    fetch("/api/retrain", {
-      method: "POST"
-    });
-
-    alert("Treinamento iniciado! Pode levar alguns minutos.");
-
-  } catch (err) {
-    console.error(err);
-    alert("Erro ao iniciar treinamento.");
+  if (_mode === 'cpf') {
+    const cpf = document.getElementById('cpf-input').value.trim();
+    if (!cpf) {
+      document.getElementById('persons-list').innerHTML = `<div class="empty-state"><span class="icon">📄</span>Digite um CPF para buscar</div>`;
+      document.getElementById('result-count').textContent = '';
+      document.getElementById('pagination').innerHTML = '';
+      return;
+    }
+    url = `/api/persons?page=${_page}&per_page=20&cpf=${encodeURIComponent(cpf)}`;
+  } else {
+    const q      = document.getElementById('q-input').value;
+    const risk   = document.getElementById('q-risk').value;
+    const status = document.getElementById('q-status').value;
+    url = `/api/persons?page=${_page}&per_page=20&q=${encodeURIComponent(q)}&risk=${risk}&status=${status}`;
   }
 
-  // Libera botão depois de alguns segundos (evita spam)
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.innerText = "🔄 TREINAR MODELO";
-  }, 5000);
+  const data = await API.get(url);
+  renderList(data);
 }
 
 function renderList(data) {
@@ -135,16 +187,20 @@ function renderList(data) {
     <a class="person-card fade-in" href="/person/${p.id}">
       ${avatarEl(p)}
       <div class="person-info">
-        <div class="person-name">${p.name}${p.nickname ? ` <span class="text-dim text-xs">"${p.nickname}"</span>` : ''}</div>
-        <div class="person-meta">${[p.age && p.age+'a', p.skin_color, p.height_cm && p.height_cm+'cm'].filter(Boolean).join(' · ') || 'Sem dados físicos'}</div>
+        <div class="person-name">
+          ${p.name}
+          ${p.nickname ? `<span class="text-dim text-xs">"${p.nickname}"</span>` : ''}
+        </div>
+        <div class="person-meta flex gap-2 items-center" style="flex-wrap:wrap">
+          ${[p.age && p.age+'a', p.skin_color, p.height_cm && p.height_cm+'cm'].filter(Boolean).join(' · ') || 'Sem dados físicos'}
+          ${p.cpf ? `<span class="cpf-badge">CPF: ${p.cpf}</span>` : ''}
+        </div>
         <div class="person-badges">
           ${riskBadge(p.risk_level)}
           ${statusBadge(p.status)}
         </div>
       </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2" style="flex-shrink:0">
-        <polyline points="9 18 15 12 9 6"/>
-      </svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2" style="flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
     </a>
   `).join('');
 
@@ -156,22 +212,33 @@ function renderPagination(cur, total) {
   if (total <= 1) { pag.innerHTML = ''; return; }
   let html = '';
   if (cur > 1) html += `<button class="page-btn" onclick="goPage(${cur-1})">‹</button>`;
-  const start = Math.max(1, cur - 2);
-  const end   = Math.min(total, cur + 2);
+  const start = Math.max(1, cur-2);
+  const end   = Math.min(total, cur+2);
   for (let i = start; i <= end; i++) {
-    html += `<button class="page-btn ${i === cur ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+    html += `<button class="page-btn ${i===cur?'active':''}" onclick="goPage(${i})">${i}</button>`;
   }
   if (cur < total) html += `<button class="page-btn" onclick="goPage(${cur+1})">›</button>`;
   pag.innerHTML = html;
 }
 
-function goPage(p) {
-  _page = p;
-  doSearch();
-  window.scrollTo(0, 0);
+function goPage(p) { _page = p; doSearch(); window.scrollTo(0,0); }
+
+function formatCPFInput(input) {
+  let v = input.value.replace(/\D/g, '').slice(0, 11);
+  if      (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/,        '$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/,                '$1.$2');
+  input.value = v;
 }
 
-// Initial load
+function clearCPF() {
+  document.getElementById('cpf-input').value = '';
+  document.getElementById('persons-list').innerHTML = `<div class="empty-state"><span class="icon">📄</span>Digite um CPF para buscar</div>`;
+  document.getElementById('result-count').textContent = '';
+  document.getElementById('pagination').innerHTML = '';
+}
+
+// Carrega lista inicial
 doSearch();
 </script>
 {% endblock %}

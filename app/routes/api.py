@@ -224,55 +224,23 @@ def delete_person(pid):
 @api_bp.route("/persons/<int:pid>/photo/face", methods=["POST"])
 @login_required
 def upload_face(pid):
-    """Adiciona uma foto de rosto ao array face_photos.
-    Mínimo 3, máximo 5 fotos por pessoa.
-    """
     p = Person.query.get_or_404(pid)
     data = request.get_json(silent=True) or {}
     b64  = data.get("image_b64", "")
     if not b64:
         return jsonify({"error": "Imagem ausente"}), 400
 
-    face_photos = json.loads(p.face_photos or "[]")
-
-    if len(face_photos) >= 5:
-        return jsonify({"error": "Limite de 5 fotos de rosto atingido"}), 400
-
-    idx  = len(face_photos) + 1
-    path = _save_b64_image(b64, f"face_{pid}_{idx}", "faces")
+    path = _save_b64_image(b64, f"face_{pid}", "faces")
     if not path:
         return jsonify({"error": "Falha ao salvar imagem"}), 500
 
-    face_photos.append(path)
-    p.face_photos = json.dumps(face_photos)
-    if not p.face_photo:
-        p.face_photo = path
+    p.face_photo = path
     p.updated_at = datetime.utcnow()
     db.session.commit()
 
-    total = len(face_photos)
-    # Só retreina ao atingir o mínimo de 3 fotos
-    if total >= 3:
-        _retrain(background=True)
-
-    return jsonify({"ok": True, "path": path, "total": total, "ready": total >= 3})
-
-
-@api_bp.route("/persons/<int:pid>/photo/face/<int:idx>", methods=["DELETE"])
-@login_required
-def delete_face_photo(pid, idx):
-    p = Person.query.get_or_404(pid)
-    face_photos = json.loads(p.face_photos or "[]")
-    if idx < 0 or idx >= len(face_photos):
-        return jsonify({"error": "Índice inválido"}), 400
-    face_photos.pop(idx)
-    p.face_photos = json.dumps(face_photos)
-    p.face_photo  = face_photos[0] if face_photos else None
-    p.updated_at  = datetime.utcnow()
-    db.session.commit()
-    if len(face_photos) >= 3:
-        _retrain(background=True)
-    return jsonify({"ok": True, "total": len(face_photos)})
+    # Retreina em background — resposta imediata, treino nao bloqueia
+    _retrain(background=True)
+    return jsonify({"ok": True, "path": path})
 
 
 @api_bp.route("/persons/<int:pid>/photo/extra", methods=["POST"])
@@ -385,9 +353,12 @@ def debug_recognize():
         knn_result = FaceService.identify_b64(b64, require_face=False)
         rt_result  = FaceService.identify_b64(b64, require_face=True)
 
+        from ..services.face import FaceNetEngine, HOGEngine, _FACENET_OK
+        threshold = FaceNetEngine._threshold if _FACENET_OK else HOGEngine._threshold
+
         return jsonify({
             "image_size": {"w": w, "h": h},
-            "threshold": FaceService._threshold if hasattr(FaceService, '_threshold') else None,
+            "threshold": threshold,
             "haar_detections": results,
             "knn_no_face_check": knn_result,
             "knn_with_face_check": rt_result,
@@ -398,6 +369,7 @@ def debug_recognize():
 
 # ── Retrain ──────────────────────────────────────────────────────────────────
 @api_bp.route("/retrain", methods=["POST"])
+@login_required
 def retrain():
     ok = _retrain(background=False)
     return jsonify({"ok": ok})
@@ -428,25 +400,17 @@ def _retrain(background: bool = False):
 
 
 def _run_train():
-    """Treina usando TODAS as fotos de rosto (face_photos) de cada pessoa.
-    Cada foto → 1 embedding separado → melhor cobertura de ângulo/luz.
-    """
-    upload_dir = current_app.config["UPLOAD_FOLDER"]
-    model_path = current_app.config["MODEL_PATH"]
-    persons    = Person.query.all()
+    upload_dir  = current_app.config["UPLOAD_FOLDER"]
+    model_path  = current_app.config["MODEL_PATH"]
+    persons     = Person.query.all()
     data = []
-
     for p in persons:
-        # Usa face_photos (array) com fallback para face_photo (legado)
-        all_faces = json.loads(p.face_photos or "[]")
-        if not all_faces and p.face_photo:
-            all_faces = [p.face_photo]
-
-        for i, fp in enumerate(all_faces):
-            full = fp if os.path.isabs(fp) else os.path.join(upload_dir, fp)
-            if os.path.exists(full):
-                data.append({"id": p.id, "name": p.name, "face_photo": full})
-
+        if p.face_photo:
+            if os.path.isabs(p.face_photo):
+                full = p.face_photo
+            else:
+                full = os.path.join(upload_dir, p.face_photo)
+            data.append({"id": p.id, "name": p.name, "face_photo": full})
     if data:
         return FaceService.train(data, model_path)
     return False
@@ -488,21 +452,15 @@ def _save_b64_image(b64: str, name: str, subfolder: str):
         return None
 
 def _train_model(model_path):
+    from ..services.face import FaceNetEngine, HOGEngine, _FACENET_OK
     upload_dir = current_app.config["UPLOAD_FOLDER"]
     data = []
-    
-    # Busca todas as pessoas que têm uma foto vinculada
+
     persons = Person.query.filter(Person.face_photo != None).all()
-    
     print(f"\n[DEBUG TREINO] Iniciando sincronização de {len(persons)} pessoas...")
 
     for p in persons:
-        # Garante o caminho absoluto correto
-        if os.path.isabs(p.face_photo):
-            full_path = p.face_photo
-        else:
-            full_path = os.path.join(upload_dir, p.face_photo)
-
+        full_path = p.face_photo if os.path.isabs(p.face_photo) else os.path.join(upload_dir, p.face_photo)
         if os.path.exists(full_path):
             data.append({"id": p.id, "name": p.name, "face_photo": full_path})
         else:
@@ -511,10 +469,9 @@ def _train_model(model_path):
     if data:
         print(f"[DEBUG TREINO] Enviando {len(data)} candidatos para o FaceService...")
         success = FaceService.train(data, model_path)
-        from ..services.face import FaceNetEngine, HOGEngine, _FACENET_OK
         trained_count = len(FaceNetEngine._db) if _FACENET_OK else len(set(HOGEngine._labels))
         print(f"[DEBUG TREINO] Finalizado! Pessoas no modelo: {trained_count}")
         return success
-    
+
     print("[AVISO] Nenhum dado válido para treinar.")
     return False
